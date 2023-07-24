@@ -1,0 +1,206 @@
+│ Error: SSH key not found: ssh-rsa AAAAB3NzaC1yc2EAAAADAQABAAABAQDcgjftS8MeZoDPbnJYBsUqMnUbclqcwl8Snv1pYpMSoewkQJooziZEB3yCsuGO7NxO3GhIbKrOQcAAjV+0vVBLkKejos2fZeAB3+nwkyDtzb5cD5yKtmxGnfkgh/9Rg1gAW5d53FIqjEh5X0V2IUbCK9JT4tQYxCdbsGHBsPvDE6yDPXfWYMbWB3PGZplaPak0qW7EIDFlnEt83qpK0V7iVJC6k0/hGA8AnnOAe0yDeKLhAWUk3qw8438H8P9YWAqhdZMp2AMUIt/QbZodNZ8iVzG2gWC3giy7NU2aHa96lR7cDJZtx56y8oPPtKtTbhnCqIR513BL/tebpEg7rNM9
+│ 
+│ 
+│   with hcloud_server.webserver,
+│   on main2.tf line 23, in resource "hcloud_server" "webserver":
+│   23: resource "hcloud_server" "webserver" {
+│ 
+╵
+
+
+
+
+####################3
+resource "tls_private_key" "ssh_key" {
+  algorithm = "RSA"
+}
+
+# Speichere den öffentlichen Schlüssel lokal
+resource "local_file" "ssh_key_pub" {
+  content  = tls_private_key.ssh_key.public_key_openssh
+  filename = "ssh_key.pub"
+}
+
+# Speichere den privaten Schlüssel lokal (optional, nur für lokale Verwahrung)
+resource "local_file" "ssh_key_priv" {
+  content  = tls_private_key.ssh_key.private_key_pem
+  filename = "ssh_key.pem"
+}
+
+
+# Speichere den öffentlichen Schlüssel lokal
+resource "local_file" "ssh_key_pub" {
+  content  = hcloud_ssh_key.ssh_key.public_key_openssh
+  filename = "ssh_key.pub"
+}
+
+# Speichere den privaten Schlüssel lokal (optional, nur für lokale Verwahrung)
+resource "local_file" "ssh_key_priv" {
+  content  = hcloud_ssh_key.ssh_key.private_key_pem
+  filename = "ssh_key.pem"
+}
+
+################################################################################3
+# ...
+# Rest des Terraform-Skripts
+
+# Server mit generiertem SSH-Schlüssel erstellen
+resource "hcloud_server" "webserver" {
+  # ...
+  # Weitere Konfigurationen für den Server
+
+  # Führe das Konfigurations-Skript aus, nachdem der Server erstellt wurde
+  provisioner "remote-exec" {
+    inline = [
+      "sudo apt-get update",
+      "sudo apt-get install -y apache2",
+    ]
+  }
+
+  provisioner "file" {
+    source      = "configure_apache.sh"
+    destination = "/tmp/configure_apache.sh"
+  }
+
+  provisioner "remote-exec" {
+    script = "configure_apache.sh"
+  }
+
+  provisioner "file" {
+    source      = "install_cert.sh"
+    destination = "/tmp/install_cert.sh"
+  }
+
+  provisioner "remote-exec" {
+    script = "install_cert.sh"
+  }
+}
+###########################################
+
+resource "null_resource" "wait_for_ssh" {
+  depends_on = [hcloud_server.webserver]
+
+  provisioner "file" {
+    source      = "./apachesetup.sh"
+    destination = "/tmp/apachesetup.sh" // Passe den Zielort an, wenn nötig
+    connection {
+      type        = "ssh"
+      host        = hcloud_server.webserver.ipv4_address
+      user        = "root"
+      private_key = file("~/.ssh/id_rsa")
+    }
+  }
+  provisioner "remote-exec" {
+    inline = [
+      "chmod +x apachesetup.sh", // Stelle sicher, dass die Datei ausführbar ist
+      "bash /tmp/apachesetup.sh" // Führe das Skript aus
+    ]
+
+    connection {
+      type        = "ssh"
+      host        = hcloud_server.webserver.ipv4_address
+      user        = "root"
+      private_key = file("~/.ssh/id_rsa")
+    }
+  }
+}
+###########################33
+# Dateien auf den Server übertragen
+resource "null_resource" "copy_html_files" {
+  depends_on = [null_resource.wait_for_ssh]
+
+  provisioner "file" {
+    source      = var.html_files_path
+    destination = "/var/www/html/"
+    connection {
+      type        = "ssh"
+      host        = hcloud_server.webserver.ipv4_address
+      user        = "root"
+      private_key = file("~/.ssh/id_rsa")
+    }
+  }
+}
+
+
+
+############################3
+resource "null_resource" "configure_apache" {
+  depends_on = [null_resource.copy_html_files]
+
+   // Lokaler Pfad zur configure_apache.sh-Datei
+  provisioner "file" {
+    source      = "./configure_apache.sh"
+    destination = "/tmp/configure_apache.sh" // Passe den Zielort an, wenn nötig
+    connection {
+      type        = "ssh"
+      host        = hcloud_server.webserver.ipv4_address
+      user        = "root"
+      private_key = file("~/.ssh/id_rsa")
+    }
+  }
+
+  provisioner "remote-exec" {
+    inline = [
+      "chmod +x configure_apache.sh", // Stelle sicher, dass die Datei ausführbar ist
+      "bash /tmp/configure_apache.sh" // Führe das Skript aus
+    ]
+
+    connection {
+      type        = "ssh"
+      host        = hcloud_server.webserver.ipv4_address
+      user        = "root"
+      private_key = file("~/.ssh/id_rsa")
+    }
+  }
+ 
+}
+
+
+
+####################################333
+# ACME.sh Installation und Zertifikat erstellen
+resource "null_resource" "install_cert" {
+  depends_on = [hcloud_server.webserver]
+
+  // Lokale Datei "install_cert.sh" an den Server übertragen
+  provisioner "file" {
+    source      = "install_cert.sh" // Lokaler Pfad zur install_cert.sh-Datei
+    destination = "/tmp/install_cert.sh" // Passe den Zielort an, wenn nötig
+    connection {
+      type        = "ssh"
+      host        = hcloud_server.webserver.ipv4_address
+      user        = "root"
+      private_key = file("~/.ssh/id_rsa")
+    }
+  }
+
+  // Das Skript "install_cert.sh" auf dem Server ausführen
+  provisioner "remote-exec" {
+    inline = [
+      "chmod +x ~/install_cert.sh", // Stelle sicher, dass die Datei ausführbar ist
+      "bash /tmp/install_cert.sh" // Führe das Skript aus
+    ]
+
+    connection {
+      type        = "ssh"
+      host        = hcloud_server.webserver.ipv4_address
+      user        = "root"
+      private_key = file("~/.ssh/id_rsa")
+    }
+  }
+}
+
+
+
+
+
+provisioner "file" {
+    source      = "./index.html"
+    destination = "/var/www/html/"
+    connection {
+      type        = "ssh"
+      host        = hcloud_server.webserver.ipv4_address
+      user        = "root"
+      private_key = file("~/.ssh/id_rsa")
+    }
+  }
