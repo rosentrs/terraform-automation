@@ -20,10 +20,8 @@ resource "hcloud_server" "webserver" {
     hcloud_ssh_key.ssh_key.id 
   ]
 
-  labels = {
-    environment = "production"
-  }
-
+  
+  # apachesetup.sh sorgt dafür, dass Apache2 installiert und kofiguriert(firewallbasics, Virtualhost einrichten, Daten für die Seite an richtige Stelle packen) wird
   provisioner "file" {
     source      = "./apachesetup.sh"
     destination = "/tmp/apachesetup.sh" // Passe den Zielort an, wenn nötig
@@ -48,42 +46,6 @@ resource "hcloud_server" "webserver" {
     }
   }
 
-  
-
-  provisioner "file" {
-    source      = "./configure_apache.sh"
-    destination = "/tmp/configure_apache.sh" // Passe den Zielort an, wenn nötig
-    connection {
-      type        = "ssh"
-      host        = hcloud_server.webserver.ipv4_address
-      user        = "root"
-      private_key = file("~/.ssh/id_rsa")
-    }
-  }
-
-  provisioner "remote-exec" {
-    inline = [
-      "chmod +x configure_apache.sh", // Stelle sicher, dass die Datei ausführbar ist
-      "bash /tmp/configure_apache.sh" // Führe das Skript aus
-    ]
-
-    connection {
-      type        = "ssh"
-      host        = hcloud_server.webserver.ipv4_address
-      user        = "root"
-      private_key = file("~/.ssh/id_rsa")
-    }
-  }
-}
-
-
-# Lokaler Dateipfad zu deinen HTML-Dateien
-
-
-
-
-# Apache-Konfiguration für HTTPS-Weiterleitung
-
 # Cloudflare Provider konfigurieren
 provider "cloudflare" {
   email = "rosentreter.sophie@gmail.com"
@@ -99,7 +61,7 @@ resource "cloudflare_record" "lab4_cloud_dns" {
   ttl    = 300
   zone_id = var.cloudflare_zone_id
 
-
+  # install_cert.sh installiert das TLS-Zertifikat, schreibt die ssl.conf und sorgt für den Redirect von http auf https
   provisioner "file" {
     source      = "install_cert.sh" // Lokaler Pfad zur install_cert.sh-Datei
     destination = "/tmp/install_cert.sh" // Passe den Zielort an, wenn nötig

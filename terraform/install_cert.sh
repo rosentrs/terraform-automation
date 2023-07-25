@@ -1,5 +1,5 @@
 #!/bin/bash
-
+<<comment
 # Stop Apache to release port 80
 sudo systemctl stop apache2
 sudo apt-get update
@@ -44,11 +44,18 @@ sudo bash -c 'cat <<EOL > /etc/apache2/sites-available/default-ssl.conf
 </VirtualHost>
 EOL'
 
-# Ersetzen Sie "/path/to/your_certificate.crt" durch den Pfad zu Ihrem SSL/TLS-Zertifikat
-# und "/path/to/your_private_key.key" durch den Pfad zum privaten Schlüssel.
+# Redirect von http auf https
+sudo cp /etc/apache2/sites-available/000-default.conf /etc/apache2/sites-available/default.conf
+sudo sed -i 's/:80>/:80>\n\tRewriteEngine On\n\tRewriteRule ^(.*)$ https://%{HTTP_HOST}$1 [R=301,L]/' /etc/apache2/sites-available/default.conf
+sudo a2ensite default.conf
+sudo a2enmod ssl
+sudo systemctl restart apache2
 
 # SSL-Konfiguration aktivieren
 sudo a2ensite default-ssl
 
 # Apache-Webserver neu starten
 sudo systemctl restart apache2
+
+comment
+

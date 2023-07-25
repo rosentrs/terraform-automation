@@ -154,6 +154,10 @@ resource "null_resource" "configure_apache" {
   }
  
 }
+##################################################
+labels = {
+    environment = "production"
+  }
 
 
 
