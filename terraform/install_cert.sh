@@ -12,6 +12,8 @@ if sudo ~/.acme.sh/acme.sh --list | grep -q 'lab4.cloud_ecc'; then
   # Use ECC certificate
   sudo ~/.acme.sh/acme.sh --install-cert -d lab4.cloud \
       --ecc \
+      #vllt wieder entfernen:
+      --cert-file /etc/ssl/certs/lab4.cloud.cer\ 
       --key-file /etc/ssl/private/lab4_cloud.key \
       --fullchain-file /etc/ssl/certs/lab4_cloud.crt
 else
