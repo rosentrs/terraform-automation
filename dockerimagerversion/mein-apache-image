@@ -1,0 +1,5 @@
+# Verwende das offizielle Apache2-Basisimage
+FROM httpd:latest
+
+# Kopiere die Website-Dateien in das Image
+COPY website /usr/local/apache2/htdocs/

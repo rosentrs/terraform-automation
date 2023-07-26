@@ -7,7 +7,29 @@ resource "hcloud_server" "webserver" {
   image       = "ubuntu-22.04"
   server_type = "cx11"
   
-  # Hier weitere Konfigurationen für den Server hinzufügen, falls nötig
+  provisioner "file" {
+    source      = "deploy_website.sh"
+    destination = "/tmp/deploy_website.sh"
+    connection {
+      type        = "ssh"
+      host        = hcloud_server.webserver.ipv4_address
+      user        = "root"
+      private_key = file("~/.ssh/id_rsa")
+    }
+  }
+
+  provisioner "remote-exec" {
+    inline = [
+      "chmod +x /tmp/deploy_website.sh",
+      "/tmp/deploy_website.sh"
+    ]
+    connection {
+      type        = "ssh"
+      host        = hcloud_server.webserver.ipv4_address
+      user        = "root"
+      private_key = file("~/.ssh/id_rsa")
+    }
+  }
   
 }
 
@@ -38,8 +60,8 @@ provider "docker" {
 }
 
 resource "docker_image" "apache_image" {
-  name          = "mein-docker-registry/mein-apache-image"
-  keep_locally  = false
+  name          = "./mein-apache-image"
+  keep_locally  = true
 }
 
 resource "docker_container" "webserver_container" {
@@ -54,30 +76,32 @@ resource "docker_container" "webserver_container" {
 output "server_ip" {
   value = hcloud_floating_ip.webserver_ip.floating_ip
 }
-####################################
-resource "hcloud_server" "webserver" {
-  # ... andere Konfigurationen für den hcloud_server ...
+
+
+
+##############################3
+resource "null_resource" "docker_build" {
+  provisioner "file" {
+    content     = file("path/to/Dockerfile")  # Pfad zum Dockerfile auf dem Zielserver
+    destination = "/path/to/Dockerfile"  # Zielort des Dockerfiles auf dem Zielserver
+  }
 
   provisioner "file" {
-    source      = "deploy_website.sh"
-    destination = "/tmp/deploy_website.sh"
-    connection {
-      type        = "ssh"
-      host        = hcloud_server.webserver.ipv4_address
-      user        = "root"
-      private_key = file("~/.ssh/id_rsa")
-    }
+    content     = file("path/to/website")  # Pfad zum Inhalt der Webseite auf dem Zielserver
+    destination = "/path/to/website"  # Zielort des Inhalts der Webseite auf dem Zielserver
   }
 
   provisioner "remote-exec" {
     inline = [
-      "chmod +x /tmp/deploy_website.sh",
-      "/tmp/deploy_website.sh"
+      "cd /path/to",  # Wechseln Sie zum Verzeichnis, in dem das Dockerfile liegt
+      "docker build -t mein-apache-image .",  # Docker-Image erstellen
+      "docker run -d -p 80:80 mein-apache-image"  # Docker-Container starten
     ]
+
     connection {
       type        = "ssh"
       host        = hcloud_server.webserver.ipv4_address
-      user        = "root"
+      user        = "your-ssh-user"  # Benutzername für die SSH-Verbindung
       private_key = file("~/.ssh/id_rsa")
     }
   }
