@@ -1,0 +1,163 @@
+Apache Container mit Webseitendaten auf volume:
+
+docker volume create webdata_volume
+
+# webseitendaten auf volume schieben
+docker run --rm -v /tmp/websitedata:/source -v webdata_volume:/destination alpine cp -r /source/. /destination
+
+# Dockerfile mit Basis Apacheimage, ohne extra Anweisungen, da Daten auf volume
+FROM httpd:latest
+
+# Image bauen
+docker build -t mein_apache_image .
+
+# Container ausführen und das Volume mit dem passenden Pfad verknüpfen
+docker run -d -p 80:80 -v webdata_volume:/usr/local/apache2/htdocs mein_apache_image
+
+
+
+Apache Container mit Webseite schon im Image enthalten:
+
+# Projektverzeichnis erstellen
+# Webseitendaten dort hinkopieren
+# Neues Dockerfile mit folgendem Inhalt schreiben:
+# Verwende das offizielle Apache-Image als Basis
+FROM httpd:latest
+
+# Kopiere die Websitendateien in das Image
+COPY ./websitedata /usr/local/apache2/htdocs/
+
+# Optional: Setze Arbeitsverzeichnis (wird aber normalerweise nicht benötigt)
+# WORKDIR /usr/local/apache2/htdocs/
+
+# Optional: Exponiere den Port (standardmäßig 80)
+EXPOSE 80
+
+# Image bauen und als Container ausführen
+docker build -t my_apache_image .
+docker run -d -p 80:80 my_apache_image
+
+
+
+Anwendung mit Datenbank - Todo-Liste mit MySQL:
+# Arbeitsverzeichnis
+mkdir todo_app
+cd todo_app
+
+# Dockerfile
+# Verwende das offizielle Node.js-Image als Basis
+FROM node:14
+
+# Erstelle ein Arbeitsverzeichnis für die Anwendung im Container
+WORKDIR /usr/src/app
+
+# Kopiere die Abhängigkeiten in das Arbeitsverzeichnis
+COPY package*.json ./
+
+# Installiere die Abhängigkeiten
+RUN npm install
+
+# Kopiere die restlichen Dateien in das Arbeitsverzeichnis
+COPY . .
+
+# Exponiere den Port, auf dem die Anwendung läuft
+EXPOSE 3000
+
+# Starte die Anwendung
+CMD [ "npm", "start" ]
+
+
+
+# Beispiel package.json:
+
+{
+  "name": "todo_app",
+  "version": "1.0.0",
+  "description": "Simple To-Do List App",
+  "scripts": {
+    "start": "node index.js"
+  },
+  "dependencies": {
+    "express": "^4.17.1",
+    "mysql": "^2.18.1"
+  }
+}
+
+
+# Beispiel für index.js:
+const express = require('express');
+const mysql = require('mysql');
+
+const db = mysql.createConnection({
+  host: 'todo_db', // Name des MySQL-Datenbankcontainers im Docker-Netzwerk
+  user: 'root',
+  password: 'mysecret', // Passwort für die MySQL-Datenbank
+  database: 'db' // Name der Datenbank
+});
+
+db.connect((err) => {
+  if (err) {
+    throw err;
+  }
+  console.log('Verbunden mit der MySQL-Datenbank...');
+});
+
+const app = express();
+app.use(express.json()); // Middleware zum Parsen von JSON-Daten im Request-Body
+
+// CRUD-Funktionen
+
+// CREATE - Neue To-Do-Aufgabe hinzufügen
+app.post('/todos', (req, res) => {
+  const { task } = req.body;
+  const sql = 'INSERT INTO todos (task) VALUES (?)';
+  db.query(sql, [task], (err, result) => {
+    if (err) throw err;
+    res.send('To-Do-Aufgabe erfolgreich hinzugefügt!');
+  });
+});
+
+// READ - Alle To-Do-Aufgaben abrufen
+app.get('/todos', (req, res) => {
+  const sql = 'SELECT * FROM todos';
+  db.query(sql, (err, results) => {
+    if (err) throw err;
+    res.json(results);
+  });
+});
+
+// UPDATE - Eine To-Do-Aufgabe aktualisieren
+app.put('/todos/:id', (req, res) => {
+  const { id } = req.params;
+  const { task } = req.body;
+  const sql = 'UPDATE todos SET task = ? WHERE id = ?';
+  db.query(sql, [task, id], (err, result) => {
+    if (err) throw err;
+    res.send('To-Do-Aufgabe erfolgreich aktualisiert!');
+  });
+});
+
+// DELETE - Eine To-Do-Aufgabe löschen
+app.delete('/todos/:id', (req, res) => {
+  const { id } = req.params;
+  const sql = 'DELETE FROM todos WHERE id = ?';
+  db.query(sql, [id], (err, result) => {
+    if (err) throw err;
+    res.send('To-Do-Aufgabe erfolgreich gelöscht!');
+  });
+});
+
+const port = 3000;
+app.listen(port, () => {
+  console.log(`Server läuft auf Port ${port}`);
+});
+
+
+# Docker Image bauen
+docker build -t todo_app .
+
+# Container mit MySQL-Datenbank ausführen (ältere Version, sonst nicht funktionstüchtig)
+docker run -d --name todo_db -e MYSQL_ROOT_PASSWORD=mysecret -e MYSQL_DATABASE=todo_db mysql:5.7
+
+# Container mit der Node.js-Anwendung
+docker run -d -p 3000:3000 --name todo_app --link todo_db:todo_db todo_app
