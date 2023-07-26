@@ -9,9 +9,6 @@ resource "hcloud_server" "webserver" {
   
   # Hier weitere Konfigurationen für den Server hinzufügen, falls nötig
   
-  labels = {
-    environment = "production"
-  }
 }
 
 resource "hcloud_floating_ip" "webserver_ip" {
@@ -56,4 +53,32 @@ resource "docker_container" "webserver_container" {
 
 output "server_ip" {
   value = hcloud_floating_ip.webserver_ip.floating_ip
+}
+####################################
+resource "hcloud_server" "webserver" {
+  # ... andere Konfigurationen für den hcloud_server ...
+
+  provisioner "file" {
+    source      = "deploy_website.sh"
+    destination = "/tmp/deploy_website.sh"
+    connection {
+      type        = "ssh"
+      host        = hcloud_server.webserver.ipv4_address
+      user        = "root"
+      private_key = file("~/.ssh/id_rsa")
+    }
+  }
+
+  provisioner "remote-exec" {
+    inline = [
+      "chmod +x /tmp/deploy_website.sh",
+      "/tmp/deploy_website.sh"
+    ]
+    connection {
+      type        = "ssh"
+      host        = hcloud_server.webserver.ipv4_address
+      user        = "root"
+      private_key = file("~/.ssh/id_rsa")
+    }
+  }
 }
