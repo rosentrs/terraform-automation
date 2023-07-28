@@ -17,7 +17,9 @@ docker run -d -p 80:80 -v webdata_volume:/usr/local/apache2/htdocs mein_apache_i
 
 
 Apache Container mit Webseite schon im Image enthalten:
-
+sudo apt install -y unzip
+sudo wget -O /dockerproj/website.zip https://html5up.net/dimension/download --no-check-certificate
+sudo unzip -uo /dockerproj/website.zip -d /dockerproj/websitedata
 # Projektverzeichnis erstellen
 # Webseitendaten dort hinkopieren
 # Neues Dockerfile mit folgendem Inhalt schreiben:
@@ -161,3 +163,10 @@ docker run -d --name todo_db -e MYSQL_ROOT_PASSWORD=mysecret -e MYSQL_DATABASE=t
 
 # Container mit der Node.js-Anwendung
 docker run -d -p 3000:3000 --name todo_app --link todo_db:todo_db todo_app
+
+
+
+
+Eigenes image hochladen
+n vm mit docker und jeweils ein container mit apacheserver
+loadbalancer vor vms setzen
