@@ -20,7 +20,7 @@ resource "hcloud_server" "webserver" {
     hcloud_ssh_key.ssh_key.id 
   ]
 
-  
+}
   # apachesetup.sh sorgt dafür, dass Apache2 installiert und kofiguriert(firewallbasics, Virtualhost einrichten, Daten für die Seite an richtige Stelle packen) wird
   provisioner "file" {
     source      = "./apachesetup.sh"
